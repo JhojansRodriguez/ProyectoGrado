@@ -1,4 +1,3 @@
-<!-- Vista de gestión de medicamentos para farmacias -->
 <template>
   <div class="medicines-management">
     <!-- Encabezado con botón de agregar -->
@@ -63,10 +62,16 @@
       </div>
 
       <div v-else class="medicines-grid">
-        <div v-for="medicine in filteredMedicines" 
-             :key="medicine.id" 
-             class="medicine-card"
+        <div
+          v-for="medicine in filteredMedicines" 
+          :key="medicine.id" 
+          class="medicine-card"
         >
+          <!-- Foto del medicamento -->
+          <div class="medicine-photo" v-if="medicine.photo">
+            <img :src="medicine.photo" alt="Foto del medicamento" />
+          </div>
+
           <div class="medicine-header">
             <div>
               <h3>{{ medicine.name }}</h3>
@@ -89,7 +94,7 @@
             <div class="medicine-details">
               <div class="price">
                 <i class="fas fa-tag"></i>
-                
+                {{ formatPrice(medicine.price) }} COP
               </div>
               <div class="stock" :class="getStockClass(medicine.stock)">
                 <i class="fas fa-boxes"></i>
@@ -145,6 +150,20 @@
             >
           </div>
 
+          <!-- Foto del medicamento -->
+          <div class="form-group">
+            <label for="photo">Foto</label>
+            <input
+              id="photo"
+              type="file"
+              accept="image/*"
+              @change="handlePhotoChange"
+            />
+            <div v-if="photoPreview" class="photo-preview">
+              <img :src="photoPreview" alt="Previsualización" />
+            </div>
+          </div>
+
           <div class="form-row">
             <div class="form-group">
               <label for="price">Precio</label>
@@ -155,6 +174,7 @@
                 required
                 min="0"
                 step="any"
+                inputmode="decimal"
               >
             </div>
 
@@ -166,6 +186,8 @@
                 type="number"
                 required
                 min="0"
+                step="1"
+                inputmode="numeric"
               >
             </div>
           </div>
@@ -220,6 +242,10 @@ import { ref, computed } from 'vue';
 import { getMedicines, addMedicine, updateMedicine, deleteMedicine as deleteFirebaseMedicine } from '../../firebase/services';
 import { useAuthStore } from '../../store/auth';
 
+// Firebase Storage para fotos
+import { storage } from '../../firebase/config';
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+
 const authStore = useAuthStore();
 
 // Estado
@@ -235,6 +261,10 @@ const editingMedicine = ref(null);
 const medicineToDelete = ref(null);
 const submitting = ref(false);
 const deleting = ref(false);
+
+// Foto - estado
+const photoFile = ref(null);
+const photoPreview = ref('');
 
 // Computed
 const pharmacyMedicines = computed(() => {
@@ -313,7 +343,11 @@ const filterMedicines = () => {
 };
 
 const formatPrice = (price) => {
-  return price.toLocaleString('es-CO');
+  try {
+    return Number(price || 0).toLocaleString('es-CO');
+  } catch {
+    return price;
+  }
 };
 
 const getStockClass = (stock) => {
@@ -323,9 +357,61 @@ const getStockClass = (stock) => {
   return 'in-stock';
 };
 
+const handlePhotoChange = (e) => {
+  const file = e.target.files?.[0];
+  if (!file) {
+    photoFile.value = null;
+    photoPreview.value = '';
+    return;
+  }
+  if (!file.type.startsWith('image/')) {
+    alert('Por favor selecciona una imagen válida.');
+    return;
+  }
+  const maxMB = 5;
+  if (file.size > maxMB * 1024 * 1024) {
+    alert(`La imagen supera ${maxMB}MB.`);
+    return;
+  }
+  photoFile.value = file;
+  photoPreview.value = URL.createObjectURL(file);
+};
+
+async function uploadPhotoIfNeeded(uid) {
+  if (!photoFile.value) return null;
+  const file = photoFile.value;
+  const safeName = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+  const path = `pharmacy-photos/${uid}/${safeName}`;
+  const refObj = storageRef(storage, path);
+  // Importante: enviar contentType para cumplir reglas de tipo en Storage
+  await uploadBytes(refObj, file, { contentType: file.type || 'application/octet-stream' });
+  const url = await getDownloadURL(refObj);
+  return { url, path };
+}
+
+async function deleteExistingPhotoIfAny(path) {
+  if (!path) return;
+  try {
+    const refObj = storageRef(storage, path);
+    await deleteObject(refObj);
+  } catch (e) {
+    console.warn('No se pudo borrar la foto anterior o no existe:', e?.message || e);
+  }
+}
+
 const editMedicine = (medicine) => {
   editingMedicine.value = medicine;
-  medicineForm.value = { ...medicine };
+  // Copia solo campos editables, evitando id/pharmacyId/fechas/etc.
+  medicineForm.value = {
+    name: medicine.name || '',
+    description: medicine.description || '',
+    specifications: medicine.specifications || '',
+    price: Number(medicine.price) || 0,
+    stock: Number(medicine.stock) || 0
+  };
+  // Previsualiza la imagen existente
+  photoPreview.value = medicine.photo || '';
+  photoFile.value = null;
   showAddModal.value = true;
 };
 
@@ -343,6 +429,9 @@ const closeModal = () => {
     price: 0,
     stock: 0
   };
+  // Reset foto
+  photoFile.value = null;
+  photoPreview.value = '';
 };
 
 const handleSubmit = async () => {
@@ -352,10 +441,36 @@ const handleSubmit = async () => {
       throw new Error('Usuario no autenticado');
     }
 
+    // Normaliza y arma payload explícito
+    const payload = {
+      name: String(medicineForm.value.name || '').trim(),
+      description: String(medicineForm.value.description || '').trim(),
+      specifications: String(medicineForm.value.specifications || '').trim(),
+      price: Number(String(medicineForm.value.price).toString().replace(',', '.')),
+      stock: Number(medicineForm.value.stock)
+    };
+
     if (editingMedicine.value) {
-      await updateMedicine(authStore.user.uid, editingMedicine.value.id, medicineForm.value);
+      // Si hay nueva foto, borra la anterior y sube la nueva
+      if (photoFile.value) {
+        await deleteExistingPhotoIfAny(editingMedicine.value.photoPath);
+        const uploadRes = await uploadPhotoIfNeeded(authStore.user.uid);
+        if (uploadRes) {
+          payload.photo = uploadRes.url;
+          payload.photoPath = uploadRes.path;
+        }
+      }
+      await updateMedicine(authStore.user.uid, editingMedicine.value.id, payload);
     } else {
-      await addMedicine(authStore.user.uid, medicineForm.value);
+      // Creación: sube foto si se seleccionó
+      const uploadRes = await uploadPhotoIfNeeded(authStore.user.uid);
+      if (uploadRes) {
+        payload.photo = uploadRes.url;
+        payload.photoPath = uploadRes.path;
+      } else {
+        payload.photo = null;
+      }
+      await addMedicine(authStore.user.uid, payload);
     }
     
     await loadMedicines();
@@ -373,6 +488,11 @@ const handleDelete = async () => {
     deleting.value = true;
     if (!authStore.user?.uid || !medicineToDelete.value) {
       throw new Error('Usuario no autenticado o medicamento no seleccionado');
+    }
+
+    // Borra la foto del Storage si hay path guardado
+    if (medicineToDelete.value.photoPath) {
+      await deleteExistingPhotoIfAny(medicineToDelete.value.photoPath);
     }
 
     await deleteFirebaseMedicine(authStore.user.uid, medicineToDelete.value.id);
@@ -463,6 +583,24 @@ select {
   border-radius: 12px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   padding: 1.5rem;
+}
+
+/* Foto en tarjeta */
+.medicine-photo {
+  width: 100%;
+  height: 160px;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+  background: #f4f6f8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.medicine-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .medicine-header {
@@ -601,6 +739,22 @@ select {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+}
+
+/* Previsualización de foto en formulario */
+.photo-preview {
+  margin-top: 0.75rem;
+  width: 100%;
+  max-height: 220px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f4f6f8;
+}
+
+.photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .modal-content {
