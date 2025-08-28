@@ -161,7 +161,7 @@
 import { ref, onMounted } from 'vue';
 import { useAuthStore } from '../../store/auth';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebase/config';
+import { db, storage} from '../../firebase/config';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const authStore = useAuthStore();
@@ -228,7 +228,7 @@ const handlePhotoChange = async (event) => {
 
   try {
     const storage = getStorage();
-    const fileRef = storageRef(storage, `pharmacy-photos/${authStore.user.uid}/${file.name}`);
+    const fileRef = storageRef(storage, `users/${authStore.user.uid}/uploads/${file.name}`);
     
     await uploadBytes(fileRef, file);
     const photoUrl = await getDownloadURL(fileRef);

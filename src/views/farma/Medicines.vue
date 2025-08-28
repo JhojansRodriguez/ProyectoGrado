@@ -89,7 +89,7 @@
             <div class="medicine-details">
               <div class="price">
                 <i class="fas fa-tag"></i>
-                ${{ formatPrice(medicine.price) }}
+                
               </div>
               <div class="stock" :class="getStockClass(medicine.stock)">
                 <i class="fas fa-boxes"></i>
@@ -154,7 +154,7 @@
                 type="number"
                 required
                 min="0"
-                step="100"
+                step="any"
               >
             </div>
 
