@@ -67,7 +67,6 @@ const routes = [
   // Rutas para usuarios de farmacia
   {
     path: '/farma',
-    component: () => import('../views/farma/FarmaLayout.vue'),
     beforeEnter: requireFarmaUser,
     children: [
       {

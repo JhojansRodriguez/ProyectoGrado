@@ -108,7 +108,7 @@
         </div>
       </form>
 
-      <!-- Sección de reseñas -->
+      <!-- Sección de reseñas 
       <div class="reviews-section">
         <h2>Mis Reseñas</h2>
         <div v-if="loadingReviews" class="loading">
@@ -138,7 +138,7 @@
             <span class="review-date">{{ formatDate(review.created_at) }}</span>
           </div>
         </div>
-      </div>
+      </div>-->
     </div>
 
     <!-- Mensaje de estado -->
