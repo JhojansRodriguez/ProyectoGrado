@@ -1,3 +1,4 @@
+
 <!-- Vista de gestión de reseñas para usuarios -->
 <template>
   <div class="reviews-management">
@@ -168,6 +169,16 @@
 import { ref, onMounted } from 'vue';
 import { useAuthStore } from '../../store/auth';
 import { db } from '../../firebase/config';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  updateDoc,
+  deleteDoc,
+  orderBy
+} from 'firebase/firestore';
 
 const loading = ref(true);
 const statusMessage = ref(null);
@@ -177,6 +188,8 @@ const editingReview = ref(null);
 const reviewToDelete = ref(null);
 const submitting = ref(false);
 const deleting = ref(false);
+
+const authStore = useAuthStore();
 
 // Formulario de reseña
 const reviewForm = ref({
@@ -189,8 +202,23 @@ const loadReviews = async () => {
   try {
     loading.value = true;
     error.value = null;
-    // TODO: Implementar carga de reseñas desde Firestore
     reviews.value = [];
+    const userId = authStore.user?.id || authStore.user?.uid;
+    if (!userId) {
+      error.value = 'No se pudo obtener el usuario actual.';
+      return;
+    }
+    const reviewsRef = collection(db, 'reviews');
+    const q = query(
+      reviewsRef,
+      where('userId', '==', userId),
+      orderBy('created_at', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    reviews.value = querySnapshot.docs.map(docSnap => ({
+      id: docSnap.id,
+      ...docSnap.data()
+    }));
   } catch (err) {
     error.value = 'Error al cargar las reseñas. Por favor, intenta nuevamente.';
     console.error(err);
@@ -221,7 +249,11 @@ const handleSubmit = async () => {
 
   try {
     submitting.value = true;
-    // TODO: Implementar actualización de reseña en Firestore
+    const reviewRef = doc(db, 'reviews', editingReview.value.id);
+    await updateDoc(reviewRef, {
+      rating: reviewForm.value.rating,
+      comment: reviewForm.value.comment
+    });
     showStatus('success', 'Reseña actualizada correctamente');
     closeEditModal();
     await loadReviews();
@@ -243,7 +275,8 @@ const deleteReview = async () => {
 
   try {
     deleting.value = true;
-    // TODO: Implementar eliminación de reseña en Firestore
+    const reviewRef = doc(db, 'reviews', reviewToDelete.value.id);
+    await deleteDoc(reviewRef);
     showStatus('success', 'Reseña eliminada correctamente');
     reviewToDelete.value = null;
     await loadReviews();
@@ -258,6 +291,10 @@ const deleteReview = async () => {
 // Utilidades
 const formatDate = (date) => {
   if (!date) return '';
+  // Si es un timestamp de Firestore, conviértelo a Date
+  if (typeof date === 'object' && date.seconds) {
+    date = new Date(date.seconds * 1000);
+  }
   return new Date(date).toLocaleDateString('es-ES', {
     year: 'numeric',
     month: 'long',
@@ -277,365 +314,3 @@ onMounted(() => {
   loadReviews();
 });
 </script>
-
-<style scoped>
-.reviews-management {
-  padding: 1rem;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.page-header {
-  margin-bottom: 2rem;
-}
-
-.page-header h1 {
-  color: #2D4739;
-  margin: 0;
-}
-
-/* Grid de reseñas */
-.reviews-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 1.5rem;
-}
-
-.review-card {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-.review-header {
-  padding: 1rem;
-  border-bottom: 1px solid #E8F1F2;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.pharmacy-info {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-.pharmacy-photo {
-  width: 48px;
-  height: 48px;
-  border-radius: 8px;
-  object-fit: cover;
-}
-
-.pharmacy-info h3 {
-  margin: 0;
-  color: #2D4739;
-  font-size: 1.1rem;
-}
-
-.pharmacy-address {
-  margin: 0.25rem 0 0;
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.review-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.btn-icon {
-  background: none;
-  border: none;
-  color: #5F7F79;
-  cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 4px;
-}
-
-.btn-icon:hover {
-  background: #E8F1F2;
-}
-
-.btn-icon.delete {
-  color: #dc3545;
-}
-
-.btn-icon.delete:hover {
-  background: #fde8e8;
-}
-
-.review-body {
-  padding: 1rem;
-}
-
-.rating {
-  margin-bottom: 0.5rem;
-}
-
-.rating i {
-  color: #ddd;
-  font-size: 1rem;
-}
-
-.rating i.active {
-  color: #ffc107;
-}
-
-.review-text {
-  color: #2D4739;
-  margin: 0 0 1rem;
-  line-height: 1.5;
-}
-
-.review-meta {
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.review-date {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Estados de carga y error */
-.loading-state,
-.error-state,
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  color: #666;
-}
-
-.loading-state i,
-.error-state i,
-.empty-state i {
-  font-size: 2rem;
-  margin-bottom: 1rem;
-  display: block;
-}
-
-.error-state {
-  color: #dc3545;
-}
-
-.btn-retry {
-  margin-top: 1rem;
-  padding: 0.75rem 1.5rem;
-  background: #5F7F79;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.modal-header {
-  padding: 1rem;
-  border-bottom: 1px solid #E8F1F2;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-header h2 {
-  margin: 0;
-  color: #2D4739;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  color: #666;
-  cursor: pointer;
-  padding: 0.5rem;
-}
-
-/* Formulario de reseña */
-.review-form {
-  padding: 1rem;
-}
-
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.rating-input {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.rating-star {
-  background: none;
-  border: none;
-  color: #ddd;
-  cursor: pointer;
-  font-size: 1.5rem;
-  padding: 0.25rem;
-}
-
-.rating-star.active {
-  color: #ffc107;
-}
-
-textarea {
-  width: 100%;
-  padding: 0.75rem;
-  border: 2px solid #E8F1F2;
-  border-radius: 8px;
-  resize: vertical;
-}
-
-/* Botones */
-.btn-primary,
-.btn-secondary,
-.btn-danger {
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-size: 1rem;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: all 0.3s;
-}
-
-.btn-primary {
-  background: #5F7F79;
-  color: white;
-  border: none;
-  text-decoration: none;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #4a6561;
-}
-
-.btn-secondary {
-  background: white;
-  color: #5F7F79;
-  border: 2px solid #5F7F79;
-}
-
-.btn-secondary:hover {
-  background: #E8F1F2;
-}
-
-.btn-danger {
-  background: #dc3545;
-  color: white;
-  border: none;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: #c82333;
-}
-
-button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-/* Diálogo de confirmación */
-.confirm-dialog {
-  max-width: 400px;
-}
-
-.confirm-body {
-  padding: 2rem;
-  text-align: center;
-}
-
-.confirm-body i {
-  font-size: 3rem;
-  color: #ffc107;
-  margin-bottom: 1rem;
-}
-
-.confirm-body .warning {
-  color: #dc3545;
-  font-size: 0.9rem;
-  margin-top: 0.5rem;
-}
-
-.confirm-actions {
-  padding: 1rem;
-  border-top: 1px solid #E8F1F2;
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-}
-
-/* Mensaje de estado */
-.status-message {
-  position: fixed;
-  bottom: 2rem;
-  right: 2rem;
-  padding: 1rem 2rem;
-  border-radius: 8px;
-  animation: slideIn 0.3s ease-out;
-}
-
-.status-message.success {
-  background: #d4edda;
-  color: #155724;
-}
-
-.status-message.error {
-  background: #f8d7da;
-  color: #721c24;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-@media (max-width: 768px) {
-  .reviews-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .confirm-actions {
-    flex-direction: column-reverse;
-  }
-
-  .btn-primary,
-  .btn-secondary,
-  .btn-danger {
-    width: 100%;
-    justify-content: center;
-  }
-}
-</style>

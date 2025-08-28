@@ -1,7 +1,7 @@
 <!-- Componente para mostrar información de una farmacia -->
 <template>
   <div class="pharmacy-card">
-    <img :src="pharmacy.image" :alt="pharmacy.name" class="pharmacy-image">
+    <img :src="pharmacy.photo_url" :alt="pharmacy.name" class="pharmacy-image">
     <div class="card-content">
       <h3>{{ pharmacy.name }}</h3>
       <p class="address">
@@ -9,12 +9,12 @@
         {{ pharmacy.address }}
       </p>
       <p class="schedule">
-        <i class="fas fa-clock"></i>
-        {{ pharmacy.schedule }}
+      <i class="fas fa-clock"></i>
+      {{ pharmacy.open_hrs && pharmacy.close_hrs ? `${pharmacy.open_hrs} a ${pharmacy.close_hrs}` : 'Horario no disponible' }}
       </p>
       <p class="phone">
         <i class="fas fa-phone"></i>
-        {{ pharmacy.phone }}
+        {{ pharmacy.phone_number }}
       </p>
     </div>
   </div>

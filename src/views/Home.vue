@@ -1,7 +1,6 @@
-
 <template>
   <div class="home">
-    <!-- Hero Section (puedes personalizar el texto) -->
+    <!-- Hero Section -->
     <section class="hero">
       <h1>Bienvenido a PharmaLoc</h1>
       <p>Encuentra farmacias y medicamentos cerca de ti de manera rápida y sencilla.</p>
@@ -12,7 +11,6 @@
       <div class="container">
         <div class="section-header">
           <h2>Farmacias destacadas</h2>
-          <!-- Puedes agregar un botón "Ver todas" si lo deseas -->
         </div>
         <div v-if="loading" class="loading">Cargando farmacias...</div>
         <div v-else-if="error" class="error">Error: {{ error }}</div>
@@ -21,13 +19,12 @@
             v-for="pharmacy in randomPharmacies"
             :key="pharmacy.id"
             class="card"
-            style="background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); padding: 1.5rem;"
           >
-            <h3 style="margin-bottom: 0.5rem;">{{ pharmacy.name }}</h3>
-            <p style="color: #5F7F79; font-size: 0.95rem;">
+          <img :src="pharmacy.photo_url" :alt="image-pharmacy" class="pharmacy-image">
+            <h3>{{ pharmacy.name }}</h3>
+            <p>
               {{ pharmacy.address }}
             </p>
-            <!-- Puedes agregar más datos de la farmacia aquí -->
           </div>
         </div>
       </div>
@@ -46,16 +43,15 @@
             v-for="medicine in randomMedicines"
             :key="medicine.id"
             class="card"
-            style="background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); padding: 1.5rem;"
           >
-            <h3 style="margin-bottom: 0.5rem;">{{ medicine.name }}</h3>
-            <p style="color: #5F7F79; font-size: 0.95rem;">
+          <img :src="medicine.photo" :alt="image-pharmacy" class="medicine-image">
+            <h3>{{ medicine.name }}</h3>
+            <p>
               {{ medicine.description || 'Sin descripción' }}
             </p>
-            <div style="margin-top: 1rem; font-weight: bold;">
+            <div class="price">
               {{ formatCurrency(medicine.price) }}
             </div>
-            <!-- Puedes agregar más datos del medicamento aquí -->
           </div>
         </div>
       </div>
@@ -65,7 +61,7 @@
 
 <script>
 import { getPharmacies, getMedicines } from '@/firebase/services';
-
+import PharmacyCard from '../components/PharmacyCard.vue'
 function getRandomItems(array, count) {
   const shuffled = array.slice().sort(() => 0.5 - Math.random());
   return shuffled.slice(0, count);
@@ -114,132 +110,204 @@ export default {
 </script>
 
 <style scoped>
-.home {
-  padding-top: 60px;
+/* GLOBAL RESET FOR THIS COMPONENT */
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
+.home {
+  padding-top: 0px;
+}
+
+/* HERO SECTION */
 .hero {
   background: linear-gradient(135deg, #5F7F79 0%, #2D4739 100%);
   color: white;
-  padding: 4rem 0;
+  padding: 3.5rem 0 2.5rem 0;
   text-align: center;
 }
-
 .hero h1 {
-  font-size: 2.5rem;
+  font-size: 2.2rem;
   margin-bottom: 1rem;
+  line-height: 1.1;
 }
-
 .hero p {
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   opacity: 0.9;
   max-width: 800px;
   margin: 0 auto;
 }
+.pharmacy-image {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+}
+.medicine-image {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+}
 
+/* FEATURED SECTION */
 .featured-section {
-  padding: 4rem 0;
+  padding: 3rem 0;
   background-color: #E8F1F2;
 }
-
-.featured-section:nth-child(even) {
+.featured-section:nth-of-type(even) {
   background-color: #FFFFFF;
 }
-
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 16px;
 }
-
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+  flex-wrap: wrap;
 }
-
 .section-header h2 {
   color: #2D4739;
-  font-size: 2rem;
+  font-size: 1.7rem;
   margin: 0;
 }
 
-.view-all-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #5F7F79;
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.3s;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  background-color: rgba(95, 127, 121, 0.1);
-}
-
-.view-all-btn:hover {
-  background-color: rgba(95, 127, 121, 0.2);
-  color: #2D4739;
-}
-
-.view-all-btn i {
-  transition: transform 0.3s;
-}
-
-.view-all-btn:hover i {
-  transform: translateX(4px);
-}
-
+/* CARD GRID */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+.card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 140px;
+  max-width: 100%;
+  transition: box-shadow 0.2s;
+  word-break: break-word;
+}
+.card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+}
+.card h3 {
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+  color: #2D4739;
+}
+.card p {
+  color: #5F7F79;
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+}
+.card .price {
+  margin-top: 1rem;
+  font-weight: bold;
+  color: #2D4739;
+  font-size: 1.05rem;
 }
 
+/* LOADING & ERROR */
 .loading, .error {
   text-align: center;
-  padding: 2rem;
+  padding: 2rem 0.5rem;
   color: #2D4739;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  font-size: 1rem;
 }
-
 .error {
   color: #dc3545;
 }
 
-@media (max-width: 768px) {
+/* RESPONSIVE DESIGN */
+@media (max-width: 1024px) {
+  .container {
+    max-width: 98vw;
+    padding: 0 8px;
+  }
   .hero {
-    padding: 3rem 0;
+    padding: 2.5rem 0 1.5rem 0;
   }
-
-  .hero h1 {
-    font-size: 2rem;
-  }
-
-  .hero p {
-    font-size: 1rem;
-  }
-
   .featured-section {
     padding: 2rem 0;
   }
-
   .section-header {
-    flex-direction: column;
-    gap: 1rem;
-    text-align: center;
+    margin-bottom: 1.2rem;
   }
+}
 
-  .section-header h2 {
+@media (max-width: 768px) {
+  .hero {
+    padding: 1.5rem 0 1rem 0;
+  }
+  .hero h1 {
     font-size: 1.5rem;
   }
-
+  .hero p {
+    font-size: 0.98rem;
+    padding: 0 6px;
+  }
+  .featured-section {
+    padding: 1rem 0;
+  }
+  .section-header {
+    flex-direction: column;
+    gap: 0.7rem;
+    text-align: center;
+  }
+  .section-header h2 {
+    font-size: 1.1rem;
+  }
   .grid {
-    gap: 1rem;
+    gap: 0.7rem;
+    grid-template-columns: 1fr;
+  }
+  .card {
+    padding: 0.7rem;
+    min-height: 90px;
+    font-size: 0.93rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .home {
+    padding-top: 30px;
+  }
+  .hero {
+    padding: 0.7rem 0 0.5rem 0;
+  }
+  .hero h1 {
+    font-size: 1.1rem;
+  }
+  .hero p {
+    font-size: 0.9rem;
+    padding: 0 2px;
+  }
+  .featured-section {
+    padding: 0.5rem 0;
+  }
+  .container {
+    padding: 0 2px;
+  }
+  .card {
+    padding: 0.4rem;
+    font-size: 0.9rem;
+    min-height: 60px;
+  }
+  .card h3 {
+    font-size: 0.95rem;
+  }
+  .card .price {
+    font-size: 0.95rem;
   }
 }
 </style>

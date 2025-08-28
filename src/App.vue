@@ -201,7 +201,7 @@ input, textarea, select {
   }
 
   body {
-    background-color: #1A202C;
+    background-color: #f9f9fa;
   }
 }
 
@@ -215,3 +215,4 @@ input, textarea, select {
   }
 }
 </style>
+

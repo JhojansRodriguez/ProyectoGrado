@@ -1,4 +1,5 @@
-<!-- Vista de contacto -->
+
+<!-- Vista de contacto con Formspree funcional -->
 <template>
   <div class="contact">
     <header class="page-header">
@@ -69,14 +70,21 @@
             </div>
           </div>
 
-          <!-- Formulario de contacto -->
+          <!-- Formulario de contacto con Formspree -->
           <div class="contact-form">
             <h2>Envíanos un Mensaje</h2>
-            <form @submit.prevent="handleSubmit">
+            <form
+              action="https://formspree.io/f/xzzrgnld"
+              method="POST"
+              @submit="handleSubmit"
+              ref="contactForm"
+              novalidate
+            >
               <div class="form-group">
                 <label for="name">Nombre Completo</label>
                 <input 
                   id="name"
+                  name="name"
                   v-model="form.name"
                   type="text"
                   required
@@ -88,6 +96,7 @@
                 <label for="email">Correo Electrónico</label>
                 <input 
                   id="email"
+                  name="email"
                   v-model="form.email"
                   type="email"
                   required
@@ -99,6 +108,7 @@
                 <label for="subject">Asunto</label>
                 <input 
                   id="subject"
+                  name="subject"
                   v-model="form.subject"
                   type="text"
                   required
@@ -110,6 +120,7 @@
                 <label for="message">Mensaje</label>
                 <textarea 
                   id="message"
+                  name="message"
                   v-model="form.message"
                   rows="5"
                   required
@@ -126,6 +137,12 @@
                 <span v-else>Enviar Mensaje</span>
               </button>
             </form>
+            <div v-if="successMessage" class="success-message">
+              {{ successMessage }}
+            </div>
+            <div v-if="errorMessage" class="error-message">
+              {{ errorMessage }}
+            </div>
           </div>
         </div>
       </div>
@@ -135,12 +152,12 @@
 
 <script setup>
 import { ref } from 'vue';
-import { useNotificationStore } from '../store/notifications';
 
-const notificationStore = useNotificationStore();
 const loading = ref(false);
+const successMessage = ref('');
+const errorMessage = ref('');
+const contactForm = ref(null);
 
-// Estado del formulario
 const form = ref({
   name: '',
   email: '',
@@ -148,26 +165,34 @@ const form = ref({
   message: ''
 });
 
-// Manejar envío del formulario
-const handleSubmit = async () => {
-  try {
-    loading.value = true;
-    
-    // TODO: Implementar lógica de envío del formulario
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulación de envío
+const handleSubmit = async (e) => {
+  e.preventDefault(); // <-- ¡Esto va al principio!
 
-    notificationStore.success('Mensaje enviado correctamente. Nos pondremos en contacto contigo pronto.');
-    
-    // Limpiar formulario
-    form.value = {
-      name: '',
-      email: '',
-      subject: '',
-      message: ''
-    };
+  // Validación básica en frontend
+  if (!form.value.name || !form.value.email || !form.value.subject || !form.value.message) {
+    errorMessage.value = 'Por favor, completa todos los campos.';
+    successMessage.value = '';
+    return;
+  }
+  loading.value = true;
+  errorMessage.value = '';
+  successMessage.value = '';
+  try {
+    const data = new FormData(contactForm.value);
+    const response = await fetch('https://formspree.io/f/xzzrgnld', {
+      method: 'POST',
+      body: data,
+      headers: { 'Accept': 'application/json' }
+    });
+    if (response.ok) {
+      successMessage.value = 'Mensaje enviado correctamente. Nos pondremos en contacto contigo pronto.';
+      form.value = { name: '', email: '', subject: '', message: '' };
+      contactForm.value.reset();
+    } else {
+      errorMessage.value = 'Error al enviar el mensaje. Por favor, intenta nuevamente.';
+    }
   } catch (error) {
-    console.error('Error al enviar mensaje:', error);
-    notificationStore.error('Error al enviar el mensaje. Por favor, intenta nuevamente.');
+    errorMessage.value = 'Error al enviar el mensaje. Por favor, intenta nuevamente.';
   } finally {
     loading.value = false;
   }
@@ -176,7 +201,7 @@ const handleSubmit = async () => {
 
 <style scoped>
 .contact {
-  padding-top: 60px;
+  padding-top: 20px;
 }
 
 .page-header {
@@ -353,6 +378,26 @@ textarea:focus {
 .submit-button:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+.success-message {
+  margin-top: 1.5rem;
+  color: #2D4739;
+  background: #e6f9e6;
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+  font-weight: 500;
+}
+
+.error-message {
+  margin-top: 1.5rem;
+  color: #dc3545;
+  background: #fde8e8;
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+  font-weight: 500;
 }
 
 /* Media queries */

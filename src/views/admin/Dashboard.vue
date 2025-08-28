@@ -137,148 +137,145 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { collection, query, where, orderBy, limit, getDocs, updateDoc, doc } from 'firebase/firestore';
-import { db } from '../../firebase/config';
+import { ref, onMounted, computed } from 'vue';
+import { useAuthStore } from '../../store/auth';
+import { getMedicines, getPharmacyReviews } from '../../firebase/services';
 
-const router = useRouter();
+const authStore = useAuthStore();
 
 // Estado
-const stats = ref({
-  totalUsers: 0,
-  userGrowth: 0,
-  activePharmacies: 0,
-  totalPharmacies: 0,
-  totalMedicines: 0,
-  pharmaciesWithMedicines: 0,
-  newReviews: 0
+const medicines = ref([]);
+const recentReviews = ref([]);
+const loading = ref(true);
+const loadingReviews = ref(true);
+const error = ref(null);
+const reviewError = ref(null);
+const searchQuery = ref('');
+const stockFilter = ref('all');
+const sortBy = ref('name');
+const filteredMedicines = ref([]);
+
+// Computed properties
+const totalMedicines = computed(() => medicines.value.length);
+const lowStockCount = computed(() => medicines.value.filter(m => m.stock <= 20).length);
+const totalReviews = computed(() => recentReviews.value.length);
+
+const pharmacySchedule = computed(() => {
+  const openHrs = authStore.user?.open_hrs || '08:00';
+  const closeHrs = authStore.user?.close_hrs || '20:00';
+  return `${openHrs} - ${closeHrs}`;
 });
 
-const loading = ref({
-  activity: true,
-  pharmacies: true
+const pharmacyMedicines = computed(() => {
+  return medicines.value.filter(medicine => medicine.pharmacyId === authStore.user?.uid);
 });
 
-const recentActivity = ref([]);
-const newPharmacies = ref([]);
-
-// Cargar datos
-onMounted(async () => {
-  await Promise.all([
-    loadStats(),
-    loadRecentActivity(),
-    loadNewPharmacies()
-  ]);
-});
-
-const loadStats = async () => {
-  try {
-    // TODO: Implementar carga de estadísticas desde Firestore
-    stats.value = {
-      totalUsers: 0,
-      userGrowth: 0,
-      activePharmacies: 0,
-      totalPharmacies: 0,
-      totalMedicines: 0,
-      pharmaciesWithMedicines: 0,
-      newReviews: 0
-    };
-  } catch (error) {
-    console.error('Error al cargar estadísticas:', error);
-  }
-};
-
-const loadRecentActivity = async () => {
-  try {
-    loading.value.activity = true;
-    // TODO: Implementar carga de actividad reciente desde Firestore
-    recentActivity.value = [];
-  } catch (error) {
-    console.error('Error al cargar actividad reciente:', error);
-  } finally {
-    loading.value.activity = false;
-  }
-};
-
-const loadNewPharmacies = async () => {
-  try {
-    loading.value.pharmacies = true;
-    const pharmaciesRef = collection(db, 'farma_user');
-    const q = query(
-      pharmaciesRef,
-      orderBy('created_time', 'desc'),
-      limit(5)
-    );
-    
-    const snapshot = await getDocs(q);
-    newPharmacies.value = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-  } catch (error) {
-    console.error('Error al cargar farmacias:', error);
-  } finally {
-    loading.value.pharmacies = false;
-  }
-};
+const lowStockMedicines = computed(() => 
+  medicines.value
+    .filter(m => m.stock <= 20)
+    .sort((a, b) => a.stock - b.stock)
+    .slice(0, 5)
+);
 
 // Métodos
-const activatePharmacy = async (pharmacyId) => {
+const loadMedicines = async () => {
   try {
-    const pharmacyRef = doc(db, 'farma_user', pharmacyId);
-    await updateDoc(pharmacyRef, {
-      farma_activate: true
-    });
-    
-    // Actualizar la lista local
-    const index = newPharmacies.value.findIndex(p => p.id === pharmacyId);
-    if (index !== -1) {
-      newPharmacies.value[index].farma_activate = true;
+    loading.value = true;
+    error.value = null;
+    if (!authStore.user?.uid) {
+      throw new Error('Usuario no autenticado');
     }
-  } catch (error) {
-    console.error('Error al activar farmacia:', error);
+    medicines.value = await getMedicines(authStore.user.uid);
+    filterMedicines();
+  } catch (err) {
+    error.value = 'Error al cargar los medicamentos';
+    console.error(err);
+  } finally {
+    loading.value = false;
   }
 };
 
-const loadMoreActivity = () => {
-  router.push('/admin/activity');
-};
+const filterMedicines = () => {
+  let filtered = [...pharmacyMedicines.value];
 
-const getActivityIcon = (type) => {
-  const icons = {
-    user: 'fas fa-user',
-    pharmacy: 'fas fa-clinic-medical',
-    medicine: 'fas fa-pills',
-    review: 'fas fa-star'
-  };
-  return icons[type] || 'fas fa-info-circle';
-};
-
-const formatTime = (timestamp) => {
-  if (!timestamp) return '';
-  const date = timestamp.toDate();
-  const now = new Date();
-  const diff = now - date;
-  
-  // Menos de 24 horas
-  if (diff < 86400000) {
-    const hours = Math.floor(diff / 3600000);
-    if (hours < 1) {
-      const minutes = Math.floor(diff / 60000);
-      return `hace ${minutes} minutos`;
-    }
-    return `hace ${hours} horas`;
+  // Filtrar por búsqueda
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    filtered = filtered.filter(medicine => 
+      medicine.name.toLowerCase().includes(query) ||
+      medicine.description.toLowerCase().includes(query)
+    );
   }
-  
-  // Más de 24 horas
-  return date.toLocaleDateString('es-ES', {
-    day: 'numeric',
+
+  // Filtrar por stock
+  switch (stockFilter.value) {
+    case 'inStock':
+      filtered = filtered.filter(m => m.stock > 20);
+      break;
+    case 'lowStock':
+      filtered = filtered.filter(m => m.stock > 0 && m.stock <= 20);
+      break;
+    case 'outOfStock':
+      filtered = filtered.filter(m => m.stock === 0);
+      break;
+  }
+
+  // Ordenar
+  filtered.sort((a, b) => {
+    switch (sortBy.value) {
+      case 'name':
+        return a.name.localeCompare(b.name);
+      case 'priceAsc':
+        return a.price - b.price;
+      case 'priceDesc':
+        return b.price - a.price;
+      case 'stock':
+        return b.stock - a.stock;
+      default:
+        return 0;
+    }
+  });
+
+  filteredMedicines.value = filtered;
+};
+
+const loadReviews = async () => {
+  try {
+    loadingReviews.value = true;
+    reviewError.value = null;
+    if (!authStore.user?.uid) {
+      throw new Error('Usuario no autenticado');
+    }
+    // Cargar las últimas 5 reseñas de la farmacia logueada
+    recentReviews.value = await getPharmacyReviews(authStore.user.uid, 5);
+  } catch (err) {
+    reviewError.value = 'Error al cargar las reseñas';
+    console.error(err);
+  } finally {
+    loadingReviews.value = false;
+  }
+};
+
+const getStockClass = (stock) => {
+  if (stock <= 10) return 'critical';
+  if (stock <= 20) return 'warning';
+  return 'normal';
+};
+
+const formatDate = (date) => {
+  if (!date) return '';
+  return new Date(date).toLocaleDateString('es-ES', {
+    year: 'numeric',
     month: 'long',
-    hour: '2-digit',
-    minute: '2-digit'
+    day: 'numeric'
   });
 };
+
+// Lifecycle hooks
+onMounted(() => {
+  loadMedicines();
+  loadReviews();
+});
 </script>
 
 <style scoped>

@@ -1,6 +1,7 @@
 <!-- Componente para mostrar información de un medicamento -->
 <template>
   <div class="medicine-card">
+    <img :src="medicine.photo" :alt="image-pharmacy" class="medicine-image">
     <div class="card-content">
       <h3>{{ medicine.name }}</h3>
       <p class="description">{{ medicine.description }}</p>
@@ -63,6 +64,7 @@ export default {
 
 <style scoped>
 .medicine-card {
+  
   background: #FFFFFF;
   border-radius: 8px;
   overflow: hidden;
@@ -91,6 +93,11 @@ h3 {
   margin-bottom: 0.5rem;
   font-size: 1.25rem;
   font-weight: 600;
+}
+.medicine-image {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
 }
 
 .description {

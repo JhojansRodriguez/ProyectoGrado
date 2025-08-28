@@ -9,7 +9,9 @@ import {
   deleteDoc, 
   query,
   where,
-  serverTimestamp
+  serverTimestamp,
+  orderBy,
+  limit 
 } from 'firebase/firestore';
 
 // Servicio para obtener las farmacias
@@ -22,6 +24,7 @@ export const getPharmacies = async () => {
       return {
         id: doc.id,
         name: data.display_name || 'Farmacia',
+        photo: data.photo_url || 'Photo',
         address: data.farma_address || 'Dirección no disponible',
         ...data
       };
@@ -63,6 +66,7 @@ export const getMedicines = async (pharmacyId) => {
         price: Number(data.price) || 0,
         specifications: data.specifications || '',
         stock: Number(data.stock) || 0,
+        photo: data.photo || 'image',
         created_at: data.created_at?.toDate() || new Date(),
         updated_at: data.updated_at?.toDate() || new Date()
       };
@@ -75,4 +79,17 @@ export const getMedicines = async (pharmacyId) => {
     throw error;
   }
 };
-
+export const getPharmacyReviews = async (pharmacyId, max = 5) => {
+  const reviewsRef = collection(db, 'reviews'); // <-- asegúrate del nombre
+  const q = query(
+    reviewsRef,
+    where('pharmacyId', '==', pharmacyId),
+    orderBy('created_time', 'desc'),
+    limit(max)
+  );
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  }));
+};

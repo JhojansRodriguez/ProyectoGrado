@@ -1,26 +1,15 @@
-<!-- Vista de listado de medicamentos -->
+
 <template>
-  <div class="medicines">
+  <div class="medicines-view">
     <header class="page-header">
       <div class="container">
         <h1>Medicamentos</h1>
-        <p>Consulta la disponibilidad y precios de medicamentos</p>
+        <p>Explora todos los medicamentos disponibles en la plataforma</p>
       </div>
     </header>
 
     <section class="medicines-list">
       <div class="container">
-        <div class="filters">
-          <div class="search-bar">
-            <input 
-              type="text" 
-              v-model="searchQuery" 
-              placeholder="Buscar medicamento por nombre..."
-              @input="filterMedicines"
-            />
-          </div>
-        </div>
-
         <div v-if="loading" class="loading">
           Cargando medicamentos...
         </div>
@@ -28,17 +17,15 @@
           {{ error }}
         </div>
         <div v-else>
-          <div v-if="filteredMedicines.length === 0" class="no-results">
-            No se encontraron medicamentos que coincidan con tu búsqueda.
+          <div v-if="medicines.length === 0" class="no-results">
+            No hay medicamentos disponibles.
           </div>
-          <div v-else>
-            <div class="grid">
-              <MedicineCard 
-                v-for="medicine in filteredMedicines" 
-                :key="medicine.id" 
-                :medicine="medicine" 
-              />
-            </div>
+          <div v-else class="grid">
+            <MedicineCard
+              v-for="medicine in medicines"
+              :key="medicine.id"
+              :medicine="medicine"
+            />
           </div>
         </div>
       </div>
@@ -48,7 +35,7 @@
 
 <script>
 import MedicineCard from '../components/MedicineCard.vue'
-import { getMedicines } from '../firebase/services'
+import { getPharmacies, getMedicines } from '../firebase/services'
 
 export default {
   name: 'MedicinesView',
@@ -58,74 +45,96 @@ export default {
   data() {
     return {
       medicines: [],
-      filteredMedicines: [],
-      searchQuery: '',
       loading: true,
       error: null
     }
   },
   async created() {
     try {
-      this.medicines = await getMedicines();
-      this.filteredMedicines = this.medicines;
-      this.loading = false;
+      // Obtener todas las farmacias y luego todas las medicinas de cada una
+      const pharmacies = await getPharmacies();
+      let allMedicines = [];
+      for (const pharmacy of pharmacies) {
+        const meds = await getMedicines(pharmacy.id);
+        // Opcional: agrega el nombre de la farmacia a cada medicina
+        meds.forEach(med => med.pharmacyName = pharmacy.name);
+        allMedicines = allMedicines.concat(meds);
+      }
+      this.medicines = allMedicines;
     } catch (error) {
       this.error = "Error al cargar los medicamentos. Por favor, intente más tarde.";
+    } finally {
       this.loading = false;
-    }
-  },
-  methods: {
-    filterMedicines() {
-      const query = this.searchQuery.toLowerCase();
-      this.filteredMedicines = this.medicines.filter(medicine => 
-        medicine.name.toLowerCase().includes(query)
-      );
     }
   }
 }
 </script>
 
 <style scoped>
+.medicines-view {
+  padding-top: 20px;
+  min-height: 100vh;
+  background: #f8fafb;
+}
 .page-header {
   background: linear-gradient(135deg, #5F7F79 0%, #2D4739 100%);
-  padding: 20px;
+  color: white;
+  padding: 2.5rem 0 1.5rem 0;
   text-align: center;
 }
-
-.search-bar input {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ced4da;
-  border-radius: 5px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+.page-header h1 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
 }
-
-.search-bar input:focus {
-  border-color: #80bdff;
-  outline: none;
+.page-header p {
+  font-size: 1.1rem;
+  opacity: 0.95;
 }
-
-.loading {
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 18px;
+}
+.loading, .error, .no-results {
   text-align: center;
-  font-size: 18px;
-  color: #007bff;
+  padding: 2rem 0.5rem;
+  color: #2D4739;
+  font-size: 1.1rem;
 }
-
 .error {
-  text-align: center;
-  font-size: 18px;
   color: #dc3545;
 }
-
-.no-results {
-  text-align: center;
-  font-size: 18px;
-  color: #6c757d;
-}
-
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+.medicines-list{
+  padding-top: 10px;
+}
+/* Responsive */
+@media (max-width: 900px) {
+  .container {
+    padding: 0 8px;
+  }
+  .grid {
+    gap: 1.2rem;
+  }
+}
+@media (max-width: 600px) {
+  .page-header {
+    padding: 1.2rem 0 0.7rem 0;
+  }
+  .page-header h1 {
+    font-size: 1.2rem;
+  }
+  .page-header p {
+    font-size: 0.98rem;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 0.7rem;
+  }
 }
 </style>
